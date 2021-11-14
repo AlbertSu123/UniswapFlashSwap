@@ -128,6 +128,9 @@ interface IUniswapV2Pair {
             uint112 reserve1,
             uint32 blockTimestampLast
         );
+    //I added these two functions
+    function token0() external returns(address);
+    function token1() external returns(address);
 }
 
 // ----------------------IMPLEMENTATION------------------------------
@@ -138,6 +141,8 @@ contract LiquidationOperator is IUniswapV2Callee {
     // TODO: define constants used in the contract including ERC-20 tokens, Uniswap Pairs, Aave lending pools, etc. */
     //    *** Your code here ***
     // END TODO
+    ILendingPool lendingPool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    address liquidateThisGuy = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
 
     // some helper function, it is totally fine if you can finish the lab without using these function
     // https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol
@@ -181,16 +186,18 @@ contract LiquidationOperator is IUniswapV2Callee {
         // TODO: (optional) initialize your contract
         //   *** Your code here ***
         // END TODO
-        console.log("Constructor");
     }
 
     // TODO: add a `receive` function so that you can withdraw your WETH
     //   *** Your code here ***
     // END TODO
+    function takeProfits() internal {
+        //Convert the WETH to eth
+
+    }
 
     // required by the testing script, entry for your liquidation call
     function operate() external {
-        console.log("operate");
         // TODO: implement your liquidation logic
 
         // 0. security checks and initializing variables
@@ -198,6 +205,14 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // 1. get the target user account data & make sure it is liquidatable
         //    *** Your code here ***
+        (
+            uint256 totalCollateralETH,
+            uint256 totalDebtETH,
+            uint256 availableBorrowsETH,
+            uint256 currentLiquidationThreshold,
+            uint256 ltv,
+            uint256 healthFactor
+        ) = lendingPool.getUserAccountData(liquidateThisGuy);
 
         // 2. call flash swap to liquidate the target user
         // based on https://etherscan.io/tx/0xac7df37a43fab1b130318bbb761861b8357650db2e2c6493b73d6da3d9581077
@@ -205,25 +220,40 @@ contract LiquidationOperator is IUniswapV2Callee {
         // we should borrow USDT, liquidate the target user and get the WBTC, then swap WBTC to repay uniswap
         // (please feel free to develop other workflows as long as they liquidate the target user successfully)
         //    *** Your code here ***
+        address USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+        address WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+        address UniswapV2Factory = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+        address pair = IUniswapV2Factory(UniswapV2Factory).getPair(WBTC, USDT); //Not sure about order here
+        bytes memory data = abi.encode(liquidateThisGuy, USDT, WBTC);
+        uint amount0 = IUniswapV2Pair(pair).token0() == USDT ? totalCollateralETH : 0; //Try with totalColalteralETH, might be a bit much
+        uint amount1 = IUniswapV2Pair(pair).token1() == USDT ? totalCollateralETH : 0;
+        IUniswapV2Pair(pair).swap(amount0, amount1, address(this), data); //Insufficient Liquidity??
+
 
         // 3. Convert the profit into ETH and send back to sender
         //    *** Your code here ***
-
+        takeProfits();
         // END TODO
     }
 
     // required by the swap
     function uniswapV2Call(
-        address,
-        uint256,
+        address sender,
+        uint256 amount0,
         uint256 amount1,
-        bytes calldata
+        bytes calldata data
     ) external override {
-        console.log("Uniswapv2");
         // TODO: implement your liquidation logic
 
         // 2.0. security checks and initializing variables
         //    *** Your code here ***
+        (address borrower, address USDT, address WBTC) = abi.decode(data, (address, address, address));
+        address token0 = IUniswapV2Pair(msg.sender).token0();
+        address token1 = IUniswapV2Pair(msg.sender).token1();
+        address UniswapV2Factory = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+        require(msg.sender == IUniswapV2Factory(UniswapV2Factory).getPair(USDT, WBTC));
+        console.log("Reached callback");
+
 
         // 2.1 liquidate the target user
         //    *** Your code here ***
