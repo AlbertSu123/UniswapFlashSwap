@@ -181,6 +181,7 @@ contract LiquidationOperator is IUniswapV2Callee {
         // TODO: (optional) initialize your contract
         //   *** Your code here ***
         // END TODO
+        console.log("Constructor");
     }
 
     // TODO: add a `receive` function so that you can withdraw your WETH
@@ -189,6 +190,7 @@ contract LiquidationOperator is IUniswapV2Callee {
 
     // required by the testing script, entry for your liquidation call
     function operate() external {
+        console.log("operate");
         // TODO: implement your liquidation logic
 
         // 0. security checks and initializing variables
@@ -217,6 +219,7 @@ contract LiquidationOperator is IUniswapV2Callee {
         uint256 amount1,
         bytes calldata
     ) external override {
+        console.log("Uniswapv2");
         // TODO: implement your liquidation logic
 
         // 2.0. security checks and initializing variables

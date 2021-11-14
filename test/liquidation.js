@@ -3,32 +3,44 @@ const { network, ethers } = require("hardhat");
 const { BigNumber, utils }  = require("ethers");
 const { writeFile } = require('fs');
 
+let beforeLiquidationBalance;
+let liquidationOperator;
+
+let gasPrice;
+let accounts;
+let liquidator;
+
 describe("Liquidation", function () {
   it("test", async function () {
     await network.provider.request({
         method: "hardhat_reset",
         params: [{
           forking: {
-            jsonRpcUrl: process.env.ALCHE_API,
+            jsonRpcUrl: `https://eth-mainnet.alchemyapi.io/v2/HJ_i2RGc4L49NXkuwuST53fMYye2LGeB`,
             blockNumber: 12489619,
           }
         }]
       });
-    
-    const gasPrice = 0;
+  });
 
-    const accounts = await ethers.getSigners();
-    const liquidator = accounts[0].address;
+  it("Setup contracts", async function (){
+    gasPrice = 0;
 
-    const beforeLiquidationBalance = BigNumber.from(await hre.network.provider.request({
+    accounts = await ethers.getSigners();
+    liquidator = accounts[0].address;
+
+    beforeLiquidationBalance = BigNumber.from(await hre.network.provider.request({
         method: "eth_getBalance",
         params: [liquidator],
     }));
 
     const LiquidationOperator = await ethers.getContractFactory("LiquidationOperator");
-    const liquidationOperator = await LiquidationOperator.deploy(overrides = {gasPrice: gasPrice});
+    liquidationOperator = await LiquidationOperator.deploy(overrides = {gasPrice: gasPrice});
     await liquidationOperator.deployed();
 
+  });
+  
+  it("Liquidate Transaction", async function(){
     const liquidationTx = await liquidationOperator.operate(overrides = {gasPrice: gasPrice});
     const liquidationReceipt = await liquidationTx.wait();
 
@@ -51,5 +63,6 @@ describe("Liquidation", function () {
 
     expect(profit.gt(BigNumber.from(0)), "not profitable").to.be.true;
     writeFile('profit.txt', String(utils.formatEther(profit)), function (err) {console.log("failed to write profit.txt: %s", err)});
+
   });
 });
