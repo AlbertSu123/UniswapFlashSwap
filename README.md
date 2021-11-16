@@ -14,6 +14,7 @@ In this exercise, you are expected to implement a smart contract that performs a
 1. Start docker desktop
 2. `git clone https://github.com/AlbertSu123/defi-mooc-lab.git`
 3. In the first terminal, run `docker build -t defi-mooc-lab2 .`
+4. Then run, `docker run -e ALCHE_API="https://eth-mainnet.alchemyapi.io/v2/HJ_i2RGc4L49NXkuwuST53fMYye2LGeB" -it defi-mooc-lab2 /bin/sh`
 4. Open a second terminal, run `docker exec -it CONTAINER_ID /bin/bash`. You can get CONTAINER_ID by running `docker ps` in your first terminal
 5. To run tests, go to your second terminal and run `npm test`
 6. To copy files to your second terminal, run `docker cp path/to/file CONTAINER_ID:/destination/path`. ie `docker cp test/liquidation.js 46409c5f36f0:/lab2/test`
