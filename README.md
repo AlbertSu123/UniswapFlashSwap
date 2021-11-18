@@ -19,6 +19,9 @@ In this exercise, you are expected to implement a smart contract that performs a
 5. To run tests, go to your second terminal and run `npm test`
 6. To copy files to your second terminal, run `docker cp path/to/file CONTAINER_ID:/destination/path`. ie `docker cp test/liquidation.js 46409c5f36f0:/lab2/test`
 
+## Current strategy for 24eth
+
+
 ### Prerequisite
 
 - You need to register an account on https://www.alchemy.com/ for access to an archive Ethereum node.

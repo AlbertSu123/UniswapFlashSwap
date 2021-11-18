@@ -94,15 +94,15 @@ interface IUniswapV2Callee {
 // https://github.com/Uniswap/v2-core/blob/master/contracts/interfaces/IUniswapV2Factory.sol
 // https://docs.uniswap.org/protocol/V2/reference/smart-contracts/factory
 interface IUniswapV2Factory {
-    // Returns the address of the pair for tokenA and tokenB, if it has been created, else address(0).
+    // Returns the address of the WETHUSDT_pair for tokenA and tokenB, if it has been created, else address(0).
     function getPair(address tokenA, address tokenB)
         external
         view
-        returns (address pair);
+        returns (address WETHUSDT_pair);
 }
 
 // https://github.com/Uniswap/v2-core/blob/master/contracts/interfaces/IUniswapV2Pair.sol
-// https://docs.uniswap.org/protocol/V2/reference/smart-contracts/pair
+// https://docs.uniswap.org/protocol/V2/reference/smart-contracts/WETHUSDT_pair
 interface IUniswapV2Pair {
     /**
      * Swaps tokens. For regular swaps, data.length must be 0.
@@ -118,7 +118,7 @@ interface IUniswapV2Pair {
     /**
      * Returns the reserves of token0 and token1 used to price trades and distribute liquidity.
      * See Pricing[https://docs.uniswap.org/protocol/V2/concepts/advanced-topics/pricing].
-     * Also returns the block.timestamp (mod 2**32) of the last block during which an interaction occured for the pair.
+     * Also returns the block.timestamp (mod 2**32) of the last block during which an interaction occured for the WETHUSDT_pair.
      **/
     function getReserves()
         external
@@ -153,7 +153,7 @@ contract LiquidationOperator is IUniswapV2Callee {
         0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
     address WETH_address = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address pair = 0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852;
+    address WETHUSDT_pair = 0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852;
     uint256 USDT_borrow_amount = 2916378221684; //Decimals = 6
 
     // some helper function, it is totally fine if you can finish the lab without using these function
@@ -200,12 +200,7 @@ contract LiquidationOperator is IUniswapV2Callee {
         // END TODO
     }
 
-    // TODO: add a `receive` function so that you can withdraw your WETH
-    //   *** Your code here ***
-    // END TODO
-    function takeProfits() internal {
-        //Convert the WETH to eth
-    }
+    receive() external payable {}
 
     // required by the testing script, entry for your liquidation call
     function operate() external {
@@ -236,19 +231,25 @@ contract LiquidationOperator is IUniswapV2Callee {
             USDT_address,
             WBTC_address
         );
-        uint256 amount0 = IUniswapV2Pair(pair).token0() == USDT_address
-            ? USDT_borrow_amount
-            : 0; //Try with totalColalteralETH, might be a bit much
-        uint256 amount1 = IUniswapV2Pair(pair).token1() == USDT_address
+        uint256 amount0 = IUniswapV2Pair(WETHUSDT_pair).token0() == USDT_address
             ? USDT_borrow_amount
             : 0;
-
-        IUniswapV2Pair(pair).swap(amount0, amount1, address(this), data); //Insufficient Liquidity??
+        uint256 amount1 = IUniswapV2Pair(WETHUSDT_pair).token1() == USDT_address
+            ? USDT_borrow_amount
+            : 0;
+        IUniswapV2Pair(WETHUSDT_pair).swap(
+            amount0,
+            amount1,
+            address(this),
+            data
+        );
 
         // 3. Convert the profit into ETH and send back to sender
         //    *** Your code here ***
-        takeProfits();
         // END TODO
+        uint256 WETH_balance = IERC20(WETH_address).balanceOf(address(this));
+        IWETH(WETH_address).withdraw(WETH_balance);
+        payable(msg.sender).transfer(WETH_balance);
     }
 
     // required by the swap
@@ -259,17 +260,13 @@ contract LiquidationOperator is IUniswapV2Callee {
         bytes calldata data
     ) external override {
         // TODO: implement your liquidation logic
-        console.log(
-            "WBTC Balance",
-            IERC20(WBTC_address).balanceOf(address(this))
-        );
         // 2.0. security checks and initializing variables
         //    *** Your code here ***
 
         // 2.1 liquidate the target user
         //    *** Your code here ***
         //Need to approve lending pool to take USDT
-        address eth_usdt_uniswap = pair; // uniswap pair for ETH-USDT;
+        address eth_usdt_uniswap = WETHUSDT_pair; // uniswap WETHUSDT_pair for ETH-USDT;
         // IERC20(USDT_address).approve(eth_usdt_uniswap, USDT_borrow_amount);
         IERC20(USDT_address).approve(address(lendingPool), USDT_borrow_amount);
         // we know that the target user borrowed USDT with WBTC as collateral
@@ -297,34 +294,49 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // 2.2 swap WBTC for other things or repay directly
         //    *** Your code here ***
-        //Swap for ETH to repay lending pool using the weth wbtc pool
+        //Need to get as much weth as possible by swapping the WBTC we got from liquidating the dude
         address wethWBTC_pair = 0xBb2b8038a1640196FbE3e38816F3e67Cba72D940;
-        IERC20(WBTC_address).approve(
+        (
+            uint112 WBTC_reserve,
+            uint112 WETH_reserve,
+            uint32 blockTimestampLast
+        ) = IUniswapV2Pair(wethWBTC_pair).getReserves();
+        uint256 WETH_Amount_Out = getAmountOut(
+            IERC20(WBTC_address).balanceOf(address(this)),
+            uint256(WBTC_reserve),
+            uint256(WETH_reserve)
+        );
+        IERC20(WBTC_address).transfer(
             wethWBTC_pair,
             IERC20(WBTC_address).balanceOf(address(this))
         );
-        //TODO: amount0 and amount1 are too little, need to repay more
-        uint256 amount0 = IUniswapV2Pair(wethWBTC_pair).token0() == WBTC_address
-            ? 0
-            : IERC20(WBTC_address).balanceOf(address(this)) - 10**8;
-        uint256 amount1 = IUniswapV2Pair(wethWBTC_pair).token1() == WBTC_address
-            ? 0
-            : IERC20(WBTC_address).balanceOf(address(this)) - 10**8;
-        console.log(
-            "WBTC Balance",
-            IERC20(WBTC_address).balanceOf(address(this))
-        );
-        IUniswapV2Pair(wethWBTC_pair).swap(amount0, amount1, address(this), "");
-        console.log(
-            "WETH Balances",
-            IERC20(WETH_address).balanceOf(address(this))
+        IUniswapV2Pair(wethWBTC_pair).swap(
+            0,
+            WETH_Amount_Out,
+            address(this),
+            ""
         );
 
         // 2.3 repay
         //    *** Your code here ***
-        //Need to repay 9427338222 WBTC
-        IERC20(WBTC_address).approve(eth_usdt_uniswap, 9427338222);
+        //Need to repay USDTWETH
 
+        (
+            uint112 USDT_reserve_WETHUSDT,
+            uint112 WETH_reserve_WETHUSDT,
+            uint32 blockTimestampLast_WETHUSDT
+        ) = IUniswapV2Pair(wethWBTC_pair).getReserves();
+        console.log(USDT_reserve_WETHUSDT, WETH_reserve_WETHUSDT);
+        uint256 WETH_amountIn = getAmountIn(
+            USDT_borrow_amount,
+            uint256(USDT_reserve_WETHUSDT),
+            uint256(WETH_reserve_WETHUSDT)
+        );
+        console.log("WETH to repay", WETH_amountIn, USDT_borrow_amount);
+        IERC20(WETH_address).transfer(
+            WETHUSDT_pair,
+            IERC20(WETH_address).balanceOf(address(this)) - 24 * 10**18
+        );
         // END TODO
     }
 }
